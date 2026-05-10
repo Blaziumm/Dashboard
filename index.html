@@ -1245,6 +1245,12 @@
           } else {
             delete goal.doneAt;
           }
+          console.log("Checkbox change", {
+            text: goal.text,
+            checked: cb.checked,
+            done: goal.done,
+            notionId: goal.notionId,
+          });
           storeSet(key, goals);
           pushSingleGoal({ ...goal }, key, idx);
           reload();
