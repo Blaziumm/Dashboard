@@ -971,6 +971,7 @@
 
       const notionIndex = new Map();
       const notionIndexByText = new Map();
+      const notionIdSet = new Set();
 
       function storeGet(key) {
         const raw = localStorage.getItem(key);
@@ -1716,11 +1717,13 @@
         const tasks = results.map(normalizeNotionTask).filter((task) => task.text);
         notionIndex.clear();
         notionIndexByText.clear();
+        notionIdSet.clear();
         const textCounts = new Map();
         tasks.forEach((task) => {
           if (!task.notionId) return;
           const key = notionKeyFrom(task);
           notionIndex.set(key, task.notionId);
+          notionIdSet.add(task.notionId);
           const textKey = normalizeText(task.text);
           textCounts.set(textKey, (textCounts.get(textKey) || 0) + 1);
           if (!notionIndexByText.has(textKey)) {
@@ -1731,6 +1734,24 @@
           if (count > 1) notionIndexByText.set(textKey, null);
         });
         return tasks;
+      }
+
+      function relinkGoalIfNeeded(goal) {
+        if (goal.notionId && !notionIdSet.has(goal.notionId)) {
+          goal.notionId = null;
+        }
+        if (!goal.notionId) {
+          const matchId = notionIndex.get(notionKeyFrom(goal));
+          if (matchId) {
+            goal.notionId = matchId;
+            return;
+          }
+          const textKey = normalizeText(goal.text);
+          const textMatch = notionIndexByText.get(textKey);
+          if (textMatch) {
+            goal.notionId = textMatch;
+          }
+        }
       }
 
       function getAllLocalGoals() {
@@ -1768,18 +1789,7 @@
       async function pushSingleGoal(goal, key, idx) {
         if (!NOTION_SYNC_ENABLED) return;
         try {
-          if (!goal.notionId) {
-            const matchId = notionIndex.get(notionKeyFrom(goal));
-            if (matchId) {
-              goal.notionId = matchId;
-            } else {
-              const textKey = normalizeText(goal.text);
-              const textMatch = notionIndexByText.get(textKey);
-              if (textMatch) {
-                goal.notionId = textMatch;
-              }
-            }
-          }
+          relinkGoalIfNeeded(goal);
           setDebug(
             `Notion push start: text="${goal.text}" id=${goal.notionId || "(new)"} status=${goal.done ? "Done" : "Not started"} type=${NOTION_STATUS_TYPE}`
           );
@@ -1829,11 +1839,15 @@
           const existingById = new Map();
           storeListKeys("goals:").forEach((key) => {
             const existing = normalizeGoals(storeGet(key));
+            let changed = false;
             existing.forEach((goal, idx) => {
+              relinkGoalIfNeeded(goal);
+              if (goal.notionId) changed = true;
               if (goal.notionId) {
                 existingById.set(goal.notionId, { key, idx });
               }
             });
+            if (changed) storeSet(key, existing);
           });
 
           const grouped = new Map();
