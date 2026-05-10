@@ -284,6 +284,78 @@
         backdrop-filter: blur(24px) saturate(1.2);
       }
 
+      .health-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+        margin-bottom: 26px;
+      }
+
+      .health-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .health-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120% 120% at 0% 0%, rgba(123, 223, 242, 0.08), transparent 55%);
+        opacity: 0.7;
+        pointer-events: none;
+      }
+
+      .health-title {
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+      }
+
+      .health-main {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .health-score {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .health-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .health-meta {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 11px;
+        color: var(--text-tertiary);
+      }
+
+      .health-link {
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        align-self: flex-start;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 6px 10px;
+        border-radius: 999px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        transition: all 0.2s ease;
+      }
+
+      .health-link:hover {
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
       .day-ring {
         display: flex;
         align-items: center;
@@ -901,6 +973,27 @@
           <div class="ring-status" id="ringStatus">Loading…</div>
           <div class="ring-remaining" id="ringRemaining">—</div>
           <div class="ring-range">8:00 AM – 12:00 AM</div>
+        </div>
+      </div>
+
+      <div class="health-row">
+        <div class="card health-card">
+          <div class="health-title">Sleep Snapshot</div>
+          <div class="health-main">
+            <div class="health-score">86</div>
+            <div class="health-label">Sleep score</div>
+          </div>
+          <div class="health-meta">7h 55m · 10:43 PM → 6:38 AM</div>
+          <a class="health-link" href="sleep.html">View sleep</a>
+        </div>
+        <div class="card health-card">
+          <div class="health-title">Recovery</div>
+          <div class="health-main">
+            <div class="health-score">82</div>
+            <div class="health-label">Body Battery</div>
+          </div>
+          <div class="health-meta">HRV 72 ms · Stress 16</div>
+          <a class="health-link" href="sleep.html">Health details</a>
         </div>
       </div>
 
