@@ -1,5 +1,6 @@
 const GARMIN_SSO_URL = "https://sso.garmin.com/sso/signin";
 const GARMIN_BASE_URL = "https://connect.garmin.com";
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 const GARMIN_SSO_PARAMS = {
   service: "https://connect.garmin.com/modern",
@@ -131,11 +132,38 @@ async function garminApiRequest(path, jar) {
   return response.json();
 }
 
+const memoryCache = new Map();
+
+function cacheGet(key) {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet(key, value) {
+  memoryCache.set(key, { value, timestamp: Date.now() });
+}
+
 function resolveDate(queryDate) {
   if (queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate)) return queryDate;
   const date = new Date();
   date.setDate(date.getDate() - 1);
   return date.toISOString().slice(0, 10);
+}
+
+function buildDateRange(days) {
+  const results = [];
+  const today = new Date();
+  for (let i = 1; i <= days; i += 1) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    results.push(d.toISOString().slice(0, 10));
+  }
+  return results;
 }
 
 export default async function handler(req, res) {
@@ -153,6 +181,14 @@ export default async function handler(req, res) {
 
   try {
     const date = resolveDate(req.query?.date || req.query?.day);
+    const range = Number(req.query?.range || 0);
+    const cacheKey = range ? `range:${range}` : `date:${date}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      res.status(200).json({ ...cached, cached: true });
+      return;
+    }
+
     const jar = await garminLogin(email, password);
 
     const sleep = await garminApiRequest(`/wellness-service/wellness/dailySleepData/${date}`, jar);
@@ -171,7 +207,24 @@ export default async function handler(req, res) {
       bodyBattery = null;
     }
 
-    res.status(200).json({ date, sleep, summary, bodyBattery });
+    let rangeData = null;
+    if (range && Number.isFinite(range) && range > 0) {
+      const days = Math.min(14, Math.max(3, range));
+      const dates = buildDateRange(days);
+      rangeData = [];
+      for (const day of dates) {
+        try {
+          const daySleep = await garminApiRequest(`/wellness-service/wellness/dailySleepData/${day}`, jar);
+          rangeData.push({ date: day, sleep: daySleep });
+        } catch (err) {
+          rangeData.push({ date: day, sleep: null, error: true });
+        }
+      }
+    }
+
+    const payload = { date, sleep, summary, bodyBattery, range: rangeData };
+    cacheSet(cacheKey, payload);
+    res.status(200).json(payload);
   } catch (err) {
     console.error("Garmin function error", {
       message: err.message || "Server error",

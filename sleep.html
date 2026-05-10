@@ -372,6 +372,40 @@
         gap: 12px;
       }
 
+      .week-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+      }
+
+      .week-card {
+        padding: 12px 10px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+      }
+
+      .week-day {
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+      }
+
+      .week-score {
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .week-duration {
+        font-size: 11px;
+        color: var(--text-secondary);
+      }
+
       .timeline-card {
         padding: 14px 16px;
         border-radius: 14px;
@@ -486,6 +520,10 @@
 
         .timeline-grid {
           grid-template-columns: repeat(2, 1fr);
+        }
+
+        .week-grid {
+          grid-template-columns: repeat(3, 1fr);
         }
       }
     </style>
@@ -652,6 +690,11 @@
           </div>
         </section>
 
+        <section class="card timeline">
+          <div class="card-title">Last 7 Nights</div>
+          <div class="week-grid" id="weekGrid"></div>
+        </section>
+
         <section class="card readiness">
           <div class="readiness-card">
             <div class="card-title">Training Readiness</div>
@@ -721,6 +764,8 @@
       const spo2 = document.getElementById("spo2");
       const spo2Chip = document.getElementById("spo2Chip");
 
+      const weekGrid = document.getElementById("weekGrid");
+
       function setStatus(message, isError) {
         if (!dataStatus) return;
         dataStatus.textContent = message;
@@ -774,7 +819,7 @@
       }
 
       function applyGarminData(payload) {
-        const { date, sleep, summary, bodyBattery: bb } = payload || {};
+        const { date, sleep, summary, bodyBattery: bb, range } = payload || {};
         if (!sleep) return;
 
         pageSubtitle.textContent = "Garmin Instinct 2 • Garmin Connect";
@@ -884,12 +929,45 @@
         timelineBedtimeNote.textContent = "Garmin bedtime";
         timelineAsleepNote.textContent = "Sleep start";
         timelineWakeUpNote.textContent = "Wake";
+
+        if (Array.isArray(range) && weekGrid) {
+          weekGrid.innerHTML = "";
+          range.slice(0, 7).forEach((entry) => {
+            const day = entry.date;
+            const dayLabel = day ? new Date(day).toLocaleDateString(undefined, { weekday: "short" }) : "--";
+            const scoreValue = entry.sleep
+              ? entry.sleep.sleepScore ?? entry.sleep.sleepScoreOverall ?? entry.sleep.sleepScoreOverallValue
+              : null;
+            const durationValue = entry.sleep
+              ? entry.sleep.sleepTimeSeconds ?? entry.sleep.sleepTimeInSeconds ?? entry.sleep.totalSleepSeconds
+              : null;
+
+            const card = document.createElement("div");
+            card.className = "week-card";
+            const dayEl = document.createElement("div");
+            dayEl.className = "week-day";
+            dayEl.textContent = dayLabel;
+
+            const scoreEl = document.createElement("div");
+            scoreEl.className = "week-score";
+            scoreEl.textContent = Number.isFinite(scoreValue) ? Math.round(scoreValue) : "—";
+
+            const durationEl = document.createElement("div");
+            durationEl.className = "week-duration";
+            durationEl.textContent = Number.isFinite(durationValue) ? formatDuration(durationValue) : "No data";
+
+            card.appendChild(dayEl);
+            card.appendChild(scoreEl);
+            card.appendChild(durationEl);
+            weekGrid.appendChild(card);
+          });
+        }
       }
 
       async function loadGarminData() {
         try {
           setStatus("Syncing Garmin Connect data…");
-          const response = await fetch("/api/garmin");
+          const response = await fetch("/api/garmin?range=7");
           if (!response.ok) {
             const text = await response.text();
             throw new Error(text || "Garmin request failed");
