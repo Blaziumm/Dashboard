@@ -87,36 +87,43 @@ exports.handler = async (event) => {
       if (!databaseId) {
         return { statusCode: 400, body: JSON.stringify({ error: "Missing databaseId" }) };
       }
-      const statusProp = payload.properties.status
-        ? (payload.properties.statusType === "select"
-          ? { select: { name: payload.properties.status } }
-          : { status: { name: payload.properties.status } })
-        : undefined;
+      const statusProp = resolveStatusProp(payload.properties.status, payload.properties.statusType);
+      const baseProperties = {
+        Name: { title: [{ text: { content: payload.properties.title } }] },
+        "Due Date": payload.properties.due ? { date: { start: payload.properties.due } } : undefined,
+      };
+      const properties = statusProp ? { ...baseProperties, Status: statusProp } : baseProperties;
       const result = await notionRequest("/pages", {
         parent: { database_id: databaseId },
-        properties: {
-          Name: { title: [{ text: { content: payload.properties.title } }] },
-          Status: statusProp,
-          "Due Date": payload.properties.due ? { date: { start: payload.properties.due } } : undefined,
-        },
+        properties,
       }, token);
       return { statusCode: 200, body: JSON.stringify(result) };
     }
 
     if (payload.action === "update") {
-      const statusProp = payload.properties.status
-        ? (payload.properties.statusType === "select"
-          ? { select: { name: payload.properties.status } }
-          : { status: { name: payload.properties.status } })
-        : undefined;
-      const result = await notionRequest(`/pages/${payload.pageId}`, {
-        properties: {
-          Name: { title: [{ text: { content: payload.properties.title } }] },
-          Status: statusProp,
-          "Due Date": payload.properties.due ? { date: { start: payload.properties.due } } : undefined,
-        },
-      }, token, "PATCH");
-      return { statusCode: 200, body: JSON.stringify(result) };
+      const statusProp = resolveStatusProp(payload.properties.status, payload.properties.statusType);
+      const baseProperties = {
+        Name: { title: [{ text: { content: payload.properties.title } }] },
+        "Due Date": payload.properties.due ? { date: { start: payload.properties.due } } : undefined,
+      };
+      const properties = statusProp ? { ...baseProperties, Status: statusProp } : baseProperties;
+
+      if (payload.properties.statusType && payload.properties.statusType !== "auto") {
+        const result = await notionRequest(`/pages/${payload.pageId}`, { properties }, token, "PATCH");
+        return { statusCode: 200, body: JSON.stringify(result) };
+      }
+
+      try {
+        const result = await notionRequest(`/pages/${payload.pageId}`, {
+          properties: { ...baseProperties, Status: { status: { name: payload.properties.status } } },
+        }, token, "PATCH");
+        return { statusCode: 200, body: JSON.stringify(result) };
+      } catch (err) {
+        const fallback = await notionRequest(`/pages/${payload.pageId}`, {
+          properties: { ...baseProperties, Status: { select: { name: payload.properties.status } } },
+        }, token, "PATCH");
+        return { statusCode: 200, body: JSON.stringify(fallback) };
+      }
     }
 
     return { statusCode: 404, body: JSON.stringify({ error: "Unknown action" }) };
@@ -124,3 +131,9 @@ exports.handler = async (event) => {
     return { statusCode: 500, body: JSON.stringify({ error: err.message || "Server error" }) };
   }
 };
+function resolveStatusProp(status, statusType) {
+  if (!status) return undefined;
+  if (statusType === "select") return { select: { name: status } };
+  if (statusType === "status") return { status: { name: status } };
+  return null;
+}
