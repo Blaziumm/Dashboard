@@ -1776,10 +1776,11 @@
               }
             }
           }
+          const shownId = goal.notionId || (typeof result === "string" ? result : "");
           if (!goal.notionId) {
-            setDebug(`Notion push ok (created): ${goal.text}`);
+            setDebug(`Notion push ok (created): ${goal.text} id=${shownId}`);
           } else {
-            setDebug(`Notion push ok: ${goal.text}`);
+            setDebug(`Notion push ok: ${goal.text} id=${shownId}`);
           }
         } catch (err) {
           setDebug(`Notion push error: ${err.message || "unknown"}`);
