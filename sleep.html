@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sleep + Health</title>
+    <style>
+      :root {
+        --text-primary: #f8f7f4;
+        --text-secondary: #c4c0b8;
+        --text-tertiary: #7d7a73;
+        --accent: #7bdff2;
+        --accent-2: #f2b880;
+        --success: #6be3a4;
+        --warning: #f2c063;
+        --danger: #ff6b6b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #070707;
+        color: var(--text-primary);
+        font-family: "Space Grotesk", "Avenir Next", "Nunito Sans", system-ui, sans-serif;
+        padding: calc(36px + env(safe-area-inset-top)) 22px 60px;
+        display: flex;
+        justify-content: center;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: -20% -20% -20% -20%;
+        background:
+          radial-gradient(560px 420px at 16% 12%, rgba(123, 223, 242, 0.16), transparent 70%),
+          radial-gradient(460px 360px at 82% 88%, rgba(242, 184, 128, 0.12), transparent 70%),
+          radial-gradient(520px 420px at 78% 18%, rgba(96, 120, 210, 0.1), transparent 70%);
+        filter: blur(40px);
+        animation: drift 40s ease-in-out infinite alternate;
+        z-index: -2;
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+        background-size: 3px 3px;
+        z-index: -1;
+        pointer-events: none;
+      }
+
+      @keyframes drift {
+        0% {
+          transform: translate3d(0, 0, 0);
+        }
+        100% {
+          transform: translate3d(-40px, 30px, 0);
+        }
+      }
+
+      .dash {
+        width: min(1120px, 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .title-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        margin: 0;
+        background: linear-gradient(180deg, #ffffff 0%, #cdd7e0 120%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .page-subtitle {
+        font-size: 12px;
+        color: var(--text-tertiary);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .nav-link {
+        text-decoration: none;
+        color: var(--text-secondary);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        padding: 9px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.04);
+        transition: all 0.2s ease;
+      }
+
+      .nav-link:hover {
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      .date-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text-secondary);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 18px;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 18px;
+        padding: 20px 22px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(24px) saturate(1.2);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .card-title {
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .card-title::before {
+        content: "";
+        width: 14px;
+        height: 1px;
+        background: var(--text-tertiary);
+        opacity: 0.6;
+      }
+
+      .hero {
+        grid-column: span 8;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 18px;
+      }
+
+      .hero-left {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .sleep-score {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .score-ring {
+        width: 160px;
+        height: 160px;
+        position: relative;
+      }
+
+      .score-ring svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .score-center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        text-align: center;
+      }
+
+      .score-value {
+        font-size: 44px;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+      }
+
+      .score-label {
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+      }
+
+      .sleep-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .sleep-window {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .sleep-duration {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .sleep-detail {
+        font-size: 12px;
+        color: var(--text-tertiary);
+        line-height: 1.5;
+      }
+
+      .hero-right {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .phase-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .phase-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .phase-name {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .phase-time {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .phase-bar {
+        flex: 1;
+        height: 6px;
+        margin-left: 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+      }
+
+      .phase-fill {
+        height: 100%;
+        border-radius: 999px;
+      }
+
+      .phase-fill.light {
+        width: 42%;
+        background: linear-gradient(90deg, rgba(123, 223, 242, 0.2), rgba(123, 223, 242, 0.9));
+      }
+
+      .phase-fill.deep {
+        width: 26%;
+        background: linear-gradient(90deg, rgba(96, 120, 210, 0.2), rgba(96, 120, 210, 0.95));
+      }
+
+      .phase-fill.rem {
+        width: 18%;
+        background: linear-gradient(90deg, rgba(242, 184, 128, 0.2), rgba(242, 184, 128, 0.95));
+      }
+
+      .phase-fill.awake {
+        width: 14%;
+        background: linear-gradient(90deg, rgba(255, 107, 107, 0.2), rgba(255, 107, 107, 0.9));
+      }
+
+      .signal-grid {
+        grid-column: span 4;
+        display: grid;
+        gap: 18px;
+      }
+
+      .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+      }
+
+      .metric-label {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+      }
+
+      .metric-value {
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .metric-note {
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .trend {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .trend-bar {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .trend-fill {
+        position: absolute;
+        inset: 0;
+        width: var(--fill, 60%);
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(107, 227, 164, 0.2), rgba(107, 227, 164, 0.9));
+      }
+
+      .timeline {
+        grid-column: span 12;
+      }
+
+      .timeline-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+      }
+
+      .timeline-card {
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .timeline-label {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+      }
+
+      .timeline-value {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .timeline-note {
+        font-size: 11px;
+        color: var(--text-secondary);
+      }
+
+      .readiness {
+        grid-column: span 12;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+
+      .readiness-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .readiness-value {
+        font-size: 30px;
+        font-weight: 700;
+      }
+
+      .readiness-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-secondary);
+      }
+
+      .readiness-chip.good {
+        background: rgba(107, 227, 164, 0.12);
+        color: var(--success);
+      }
+
+      .readiness-chip.warn {
+        background: rgba(242, 192, 99, 0.12);
+        color: var(--warning);
+      }
+
+      @media (max-width: 980px) {
+        .hero {
+          grid-column: span 12;
+          grid-template-columns: 1fr;
+        }
+
+        .signal-grid {
+          grid-column: span 12;
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .readiness {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 600px) {
+        body {
+          padding: calc(24px + env(safe-area-inset-top)) 16px 40px;
+        }
+
+        .page-title {
+          font-size: 22px;
+        }
+
+        .score-ring {
+          width: 140px;
+          height: 140px;
+        }
+
+        .score-value {
+          font-size: 36px;
+        }
+
+        .timeline-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="dash">
+      <div class="topbar">
+        <div class="title-wrap">
+          <h1 class="page-title">Sleep + Health</h1>
+          <div class="page-subtitle">Garmin Instinct 2 • Mock Data</div>
+        </div>
+        <div class="date-chip">Last night • May 10</div>
+        <a class="nav-link" href="index.html">Back to Dashboard</a>
+      </div>
+
+      <div class="grid">
+        <section class="card hero">
+          <div class="hero-left">
+            <div class="card-title">Sleep Score</div>
+            <div class="sleep-score">
+              <div class="score-ring">
+                <svg viewBox="0 0 160 160">
+                  <defs>
+                    <filter id="scoreGlow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="2.6" />
+                    </filter>
+                  </defs>
+                  <circle
+                    cx="80"
+                    cy="80"
+                    r="66"
+                    fill="none"
+                    stroke="rgba(255,255,255,0.08)"
+                    stroke-width="10"
+                  ></circle>
+                  <circle
+                    cx="80"
+                    cy="80"
+                    r="66"
+                    fill="none"
+                    stroke="rgb(123, 223, 242)"
+                    stroke-width="10"
+                    stroke-linecap="round"
+                    stroke-dasharray="414"
+                    stroke-dashoffset="62"
+                    filter="url(#scoreGlow)"
+                    transform="rotate(-90 80 80)"
+                  ></circle>
+                </svg>
+                <div class="score-center">
+                  <div class="score-value">86</div>
+                  <div class="score-label">Excellent</div>
+                </div>
+              </div>
+              <div class="sleep-meta">
+                <div class="sleep-window">10:43 PM → 6:38 AM</div>
+                <div class="sleep-duration">7h 55m</div>
+                <div class="sleep-detail">
+                  Sleep was steady with a long deep segment. HRV remained consistent throughout
+                  the second half of the night.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="hero-right">
+            <div class="card-title">Sleep Stages</div>
+            <div class="phase-list">
+              <div class="phase-row">
+                <div class="phase-name">Light</div>
+                <div class="phase-bar"><div class="phase-fill light"></div></div>
+                <div class="phase-time">3h 18m</div>
+              </div>
+              <div class="phase-row">
+                <div class="phase-name">Deep</div>
+                <div class="phase-bar"><div class="phase-fill deep"></div></div>
+                <div class="phase-time">2h 03m</div>
+              </div>
+              <div class="phase-row">
+                <div class="phase-name">REM</div>
+                <div class="phase-bar"><div class="phase-fill rem"></div></div>
+                <div class="phase-time">1h 24m</div>
+              </div>
+              <div class="phase-row">
+                <div class="phase-name">Awake</div>
+                <div class="phase-bar"><div class="phase-fill awake"></div></div>
+                <div class="phase-time">0h 10m</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="signal-grid">
+          <div class="card">
+            <div class="card-title">Recovery Signals</div>
+            <div class="metric-row">
+              <div class="metric-label">Body Battery</div>
+              <div class="metric-value">82</div>
+            </div>
+            <div class="metric-note">+38 overnight recharge</div>
+            <div class="trend">
+              <div class="trend-bar"><div class="trend-fill" style="--fill: 78%"></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Heart</div>
+            <div class="metric-row">
+              <div class="metric-label">Resting HR</div>
+              <div class="metric-value">52 bpm</div>
+            </div>
+            <div class="metric-note">Lowest 48 bpm at 3:12 AM</div>
+          </div>
+          <div class="card">
+            <div class="card-title">HRV Status</div>
+            <div class="metric-row">
+              <div class="metric-label">Night Avg</div>
+              <div class="metric-value">72 ms</div>
+            </div>
+            <div class="metric-note">Balanced range, 7-day baseline 69 ms</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Stress</div>
+            <div class="metric-row">
+              <div class="metric-label">Overnight</div>
+              <div class="metric-value">16</div>
+            </div>
+            <div class="metric-note">Low stress, brief spike at 1:20 AM</div>
+          </div>
+        </aside>
+
+        <section class="card timeline">
+          <div class="card-title">Overnight Timeline</div>
+          <div class="timeline-grid">
+            <div class="timeline-card">
+              <div class="timeline-label">Bedtime</div>
+              <div class="timeline-value">10:18 PM</div>
+              <div class="timeline-note">Wind-down start</div>
+            </div>
+            <div class="timeline-card">
+              <div class="timeline-label">Asleep</div>
+              <div class="timeline-value">10:43 PM</div>
+              <div class="timeline-note">Sleep latency 25m</div>
+            </div>
+            <div class="timeline-card">
+              <div class="timeline-label">Deep Peak</div>
+              <div class="timeline-value">12:56 AM</div>
+              <div class="timeline-note">Longest deep stretch</div>
+            </div>
+            <div class="timeline-card">
+              <div class="timeline-label">Wake Event</div>
+              <div class="timeline-value">3:02 AM</div>
+              <div class="timeline-note">2m awake</div>
+            </div>
+            <div class="timeline-card">
+              <div class="timeline-label">Last REM</div>
+              <div class="timeline-value">5:44 AM</div>
+              <div class="timeline-note">High recovery phase</div>
+            </div>
+            <div class="timeline-card">
+              <div class="timeline-label">Wake</div>
+              <div class="timeline-value">6:38 AM</div>
+              <div class="timeline-note">Ready to rise</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card readiness">
+          <div class="readiness-card">
+            <div class="card-title">Training Readiness</div>
+            <div class="readiness-value">78</div>
+            <div class="readiness-chip good">Good to go</div>
+          </div>
+          <div class="readiness-card">
+            <div class="card-title">Respiration</div>
+            <div class="readiness-value">13 brpm</div>
+            <div class="readiness-chip">Stable</div>
+          </div>
+          <div class="readiness-card">
+            <div class="card-title">SpO2</div>
+            <div class="readiness-value">96%</div>
+            <div class="readiness-chip warn">Monitor</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>
