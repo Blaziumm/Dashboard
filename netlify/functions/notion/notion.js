@@ -1,8 +1,8 @@
 const NOTION_VERSION = "2026-03-11";
 
-async function notionRequest(path, body, token) {
+async function notionRequest(path, body, token, method = "POST") {
   const response = await fetch(`https://api.notion.com/v1${path}`, {
-    method: "POST",
+    method,
     headers: {
       "Content-Type": "application/json",
       "Notion-Version": NOTION_VERSION,
@@ -63,7 +63,7 @@ exports.handler = async (event) => {
           Status: payload.properties.status ? { status: { name: payload.properties.status } } : undefined,
           "Due Date": payload.properties.due ? { date: { start: payload.properties.due } } : undefined,
         },
-      }, token);
+      }, token, "PATCH");
       return { statusCode: 200, body: JSON.stringify(result) };
     }
 
