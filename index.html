@@ -969,6 +969,8 @@
         timer: null,
       };
 
+      const notionIndex = new Map();
+
       function storeGet(key) {
         const raw = localStorage.getItem(key);
         if (!raw) return null;
@@ -1590,6 +1592,19 @@
         return `${base}::${due}`;
       }
 
+      function normalizeText(value) {
+        return String(value || "")
+          .trim()
+          .replace(/\s+/g, " ")
+          .toLowerCase();
+      }
+
+      function notionKeyFrom(goal) {
+        const text = normalizeText(goal.text);
+        const due = goal.dueDate || "";
+        return `${text}::${due}`;
+      }
+
       function mergeGoalsByHash(existing, incoming) {
         const map = new Map();
         const idMap = new Map();
@@ -1690,7 +1705,14 @@
         const data = await notionFetch({ action: "query", databaseId: formatNotionId(NOTION_DATABASE_ID) });
         const results = Array.isArray(data.results) ? data.results : [];
         setDebug(`Notion results: ${results.length}`);
-        return results.map(normalizeNotionTask).filter((task) => task.text);
+        const tasks = results.map(normalizeNotionTask).filter((task) => task.text);
+        notionIndex.clear();
+        tasks.forEach((task) => {
+          if (!task.notionId) return;
+          const key = notionKeyFrom(task);
+          notionIndex.set(key, task.notionId);
+        });
+        return tasks;
       }
 
       function getAllLocalGoals() {
@@ -1728,6 +1750,12 @@
       async function pushSingleGoal(goal, key, idx) {
         if (!NOTION_SYNC_ENABLED) return;
         try {
+          if (!goal.notionId) {
+            const matchId = notionIndex.get(notionKeyFrom(goal));
+            if (matchId) {
+              goal.notionId = matchId;
+            }
+          }
           const result = await upsertNotionTask(goal);
           if (result && typeof result === "object" && result.error === "archived") {
             if (result.archived) goal.notionArchived = true;
@@ -1748,7 +1776,11 @@
               }
             }
           }
-          setDebug(`Notion push ok: ${goal.text}`);
+          if (!goal.notionId) {
+            setDebug(`Notion push ok (created): ${goal.text}`);
+          } else {
+            setDebug(`Notion push ok: ${goal.text}`);
+          }
         } catch (err) {
           setDebug(`Notion push error: ${err.message || "unknown"}`);
         }
