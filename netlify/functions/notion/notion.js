@@ -35,9 +35,14 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
+  const databaseId = payload.databaseId || process.env.NOTION_DATABASE_ID;
+
   try {
     if (payload.action === "query") {
-      const result = await notionRequest(`/databases/${payload.databaseId}/query`, {
+      if (!databaseId) {
+        return { statusCode: 400, body: JSON.stringify({ error: "Missing databaseId" }) };
+      }
+      const result = await notionRequest(`/databases/${databaseId}/query`, {
         sorts: payload.sorts || [],
         filter: payload.filter || undefined,
       }, token);
@@ -45,8 +50,11 @@ exports.handler = async (event) => {
     }
 
     if (payload.action === "create") {
+      if (!databaseId) {
+        return { statusCode: 400, body: JSON.stringify({ error: "Missing databaseId" }) };
+      }
       const result = await notionRequest("/pages", {
-        parent: { database_id: payload.databaseId },
+        parent: { database_id: databaseId },
         properties: {
           Name: { title: [{ text: { content: payload.properties.title } }] },
           Status: payload.properties.status ? { status: { name: payload.properties.status } } : undefined,

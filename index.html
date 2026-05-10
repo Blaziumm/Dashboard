@@ -1563,6 +1563,13 @@
         setStatus(tomorrowStatus, message, isError);
       }
 
+      function formatNotionId(id) {
+        if (!id) return "";
+        const cleaned = id.replace(/-/g, "");
+        if (cleaned.length !== 32) return id;
+        return `${cleaned.slice(0, 8)}-${cleaned.slice(8, 12)}-${cleaned.slice(12, 16)}-${cleaned.slice(16, 20)}-${cleaned.slice(20)}`;
+      }
+
       function setDebug(message) {
         if (!notionDebug) return;
         notionDebug.textContent = message;
@@ -1647,7 +1654,7 @@
       }
 
       async function fetchNotionTasks() {
-        const data = await notionFetch({ action: "query", databaseId: NOTION_DATABASE_ID });
+        const data = await notionFetch({ action: "query", databaseId: formatNotionId(NOTION_DATABASE_ID) });
         const results = Array.isArray(data.results) ? data.results : [];
         setDebug(`Notion results: ${results.length}`);
         return results.map(normalizeNotionTask).filter((task) => task.text);
@@ -1678,7 +1685,7 @@
           return result.id;
         }
 
-        const result = await notionFetch({ action: "create", databaseId: NOTION_DATABASE_ID, properties: payload });
+        const result = await notionFetch({ action: "create", databaseId: formatNotionId(NOTION_DATABASE_ID), properties: payload });
         return result.id;
       }
 
