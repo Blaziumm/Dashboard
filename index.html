@@ -1590,15 +1590,38 @@
 
       function mergeGoalsByHash(existing, incoming) {
         const map = new Map();
+        const idMap = new Map();
         existing.forEach((goal) => {
-          map.set(goalHash(goal), { ...goal });
+          const entry = { ...goal };
+          const key = goalHash(goal);
+          map.set(key, entry);
+          if (goal.notionId) idMap.set(goal.notionId, entry);
         });
         incoming.forEach((goal) => {
+          if (goal.notionId && idMap.has(goal.notionId)) {
+            const current = idMap.get(goal.notionId);
+            const merged = {
+              ...current,
+              ...goal,
+              done: goal.done ?? current.done,
+              queued: goal.queued ?? current.queued,
+              doneAt: goal.doneAt || current.doneAt,
+              lastSynced: goal.lastSynced || current.lastSynced,
+              dueDate: goal.dueDate || current.dueDate,
+              source: goal.source || current.source,
+            };
+            const hashKey = goalHash(merged);
+            map.set(hashKey, merged);
+            idMap.set(goal.notionId, merged);
+            return;
+          }
+
           const key = goalHash(goal);
           if (map.has(key)) {
             const current = map.get(key);
-            map.set(key, {
+            const merged = {
               ...current,
+              ...goal,
               done: goal.done ?? current.done,
               queued: goal.queued ?? current.queued,
               doneAt: goal.doneAt || current.doneAt,
@@ -1606,9 +1629,12 @@
               lastSynced: goal.lastSynced || current.lastSynced,
               dueDate: goal.dueDate || current.dueDate,
               source: goal.source || current.source,
-            });
+            };
+            map.set(key, merged);
+            if (merged.notionId) idMap.set(merged.notionId, merged);
           } else {
             map.set(key, { ...goal });
+            if (goal.notionId) idMap.set(goal.notionId, { ...goal });
           }
         });
         return Array.from(map.values());
@@ -1717,7 +1743,14 @@
             const key = `goals:${date}`;
             const existing = normalizeGoals(storeGet(key));
             const merged = mergeGoalsByHash(existing, tasksForDate);
-            storeSet(key, merged);
+            const seenIds = new Set();
+            const deduped = merged.filter((goal) => {
+              if (!goal.notionId) return true;
+              if (seenIds.has(goal.notionId)) return false;
+              seenIds.add(goal.notionId);
+              return true;
+            });
+            storeSet(key, deduped);
           });
 
           loadToday();
