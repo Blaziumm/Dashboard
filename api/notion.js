@@ -32,6 +32,14 @@ function resolveStatusProp(status, statusType) {
   return null;
 }
 
+function readStatusName(page) {
+  if (!page || !page.properties || !page.properties.Status) return "";
+  const prop = page.properties.Status;
+  if (prop.status && prop.status.name) return prop.status.name;
+  if (prop.select && prop.select.name) return prop.select.name;
+  return "";
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -117,7 +125,7 @@ export default async function handler(req, res) {
 
       if (payload.properties.statusType && payload.properties.statusType !== "auto") {
         const result = await notionRequest(`/pages/${payload.pageId}`, { properties }, token, "PATCH");
-        res.status(200).json(result);
+        res.status(200).json({ id: result.id, statusName: readStatusName(result) });
         return;
       }
 
@@ -125,7 +133,7 @@ export default async function handler(req, res) {
         const result = await notionRequest(`/pages/${payload.pageId}`, {
           properties: { ...baseProperties, Status: { status: { name: payload.properties.status } } },
         }, token, "PATCH");
-        res.status(200).json(result);
+        res.status(200).json({ id: result.id, statusName: readStatusName(result), mode: "status" });
         return;
       } catch (err) {
         if (String(err.message || "").includes("archived")) {
@@ -136,7 +144,7 @@ export default async function handler(req, res) {
         const fallback = await notionRequest(`/pages/${payload.pageId}`, {
           properties: { ...baseProperties, Status: { select: { name: payload.properties.status } } },
         }, token, "PATCH");
-        res.status(200).json(fallback);
+        res.status(200).json({ id: fallback.id, statusName: readStatusName(fallback), mode: "select" });
         return;
       }
     }

@@ -1804,6 +1804,9 @@
             }
           }
           const shownId = goal.notionId || (typeof result === "string" ? result : "");
+          if (result && typeof result === "object" && result.statusName) {
+            console.log("Notion update statusName", result.statusName, result.mode || "");
+          }
           if (!goal.notionId) {
             setDebug(`Notion push ok (created): ${goal.text} id=${shownId}`);
           } else {
