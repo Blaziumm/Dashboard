@@ -1730,6 +1730,17 @@
           const archivedIds = new Set(tasks.filter((t) => t.notionArchived).map((t) => t.notionId));
           const openTasks = tasks.filter((t) => !t.done && !t.notionArchived);
           setDebug(`Notion tasks after map: ${tasks.length}`);
+
+          const existingById = new Map();
+          storeListKeys("goals:").forEach((key) => {
+            const existing = normalizeGoals(storeGet(key));
+            existing.forEach((goal, idx) => {
+              if (goal.notionId) {
+                existingById.set(goal.notionId, { key, idx });
+              }
+            });
+          });
+
           const grouped = new Map();
           openTasks.forEach((task) => {
             const date = task.dueDate || getActiveDateString();
@@ -1750,9 +1761,23 @@
           grouped.forEach((tasksForDate, date) => {
             const key = `goals:${date}`;
             const existing = normalizeGoals(storeGet(key));
+            tasksForDate.forEach((task) => {
+              const hit = task.notionId ? existingById.get(task.notionId) : null;
+              if (hit && hit.key !== key) {
+                const other = normalizeGoals(storeGet(hit.key));
+                const trimmed = other.filter((goal) => goal.notionId !== task.notionId);
+                if (trimmed.length !== other.length) {
+                  storeSet(hit.key, trimmed);
+                }
+              }
+            });
             const merged = mergeGoalsByHash(existing, tasksForDate);
             const seenIds = new Set();
+            const seenHashes = new Set();
             const deduped = merged.filter((goal) => {
+              const hash = goalHash(goal);
+              if (seenHashes.has(hash)) return false;
+              seenHashes.add(hash);
               if (!goal.notionId) return true;
               if (seenIds.has(goal.notionId)) return false;
               seenIds.add(goal.notionId);
