@@ -790,6 +790,11 @@
         });
       }
 
+      function normalizeTimestamp(value) {
+        if (!Number.isFinite(value)) return null;
+        return value < 1000000000000 ? value * 1000 : value;
+      }
+
       function formatDuration(seconds) {
         if (!Number.isFinite(seconds)) return "--";
         const totalMinutes = Math.round(seconds / 60);
@@ -818,14 +823,76 @@
         }
       }
 
+      function pick(obj, paths) {
+        for (const path of paths) {
+          let current = obj;
+          let found = true;
+          for (const key of path) {
+            if (!current || typeof current !== "object" || !(key in current)) {
+              found = false;
+              break;
+            }
+            current = current[key];
+          }
+          if (found && current !== null && current !== undefined) {
+            return current;
+          }
+        }
+        return null;
+      }
+
       function applyGarminData(payload) {
         const { date, sleep, summary, bodyBattery: bb, range } = payload || {};
         if (!sleep) return;
 
+        const sleepRoot = sleep.dailySleepDTO || sleep.dailySleepData || sleep;
+
+        const sleepScoreValue = pick(sleepRoot, [
+          ["sleepScore"],
+          ["sleepScoreOverall"],
+          ["sleepScoreOverallValue"],
+          ["sleepScores", "overall", "value"],
+        ]);
+
+        const startRaw = pick(sleepRoot, [
+          ["sleepStartTimestamp"],
+          ["sleepStartTime"],
+          ["sleepStart"],
+          ["sleepStartTimestampLocal"],
+        ]);
+        const endRaw = pick(sleepRoot, [
+          ["sleepEndTimestamp"],
+          ["sleepEndTime"],
+          ["sleepEnd"],
+          ["sleepEndTimestampLocal"],
+        ]);
+        const start = normalizeTimestamp(startRaw);
+        const end = normalizeTimestamp(endRaw);
+
+        const totalSeconds = pick(sleepRoot, [
+          ["sleepTimeSeconds"],
+          ["sleepTimeInSeconds"],
+          ["totalSleepSeconds"],
+          ["sleepTime"],
+        ]);
+
+        const light = pick(sleepRoot, [["lightSleepSeconds"], ["lightSleepTimeInSeconds"], ["lightSleepTime"]]) || 0;
+        const deep = pick(sleepRoot, [["deepSleepSeconds"], ["deepSleepTimeInSeconds"], ["deepSleepTime"]]) || 0;
+        const rem = pick(sleepRoot, [["remSleepSeconds"], ["remSleepTimeInSeconds"], ["remSleepTime"]]) || 0;
+        const awake = pick(sleepRoot, [["awakeSleepSeconds"], ["awakeSleepTimeInSeconds"], ["awakeSleepTime"]]) || 0;
+
+        const hasLiveData =
+          Number.isFinite(sleepScoreValue) ||
+          Number.isFinite(totalSeconds) ||
+          (Number.isFinite(start) && Number.isFinite(end));
+
+        if (!hasLiveData) {
+          return;
+        }
+
         pageSubtitle.textContent = "Garmin Instinct 2 • Garmin Connect";
         dateChip.textContent = `Last night • ${formatDateLabel(date)}`;
 
-        const sleepScoreValue = sleep.sleepScore ?? sleep.sleepScoreOverall ?? sleep.sleepScoreOverallValue;
         if (Number.isFinite(sleepScoreValue)) {
           sleepScore.textContent = Math.round(sleepScoreValue);
           if (sleepScoreValue >= 85) sleepScoreLabel.textContent = "Excellent";
@@ -834,21 +901,13 @@
           else sleepScoreLabel.textContent = "Needs rest";
         }
 
-        const start = sleep.sleepStartTimestamp || sleep.sleepStartTime || sleep.sleepStart;
-        const end = sleep.sleepEndTimestamp || sleep.sleepEndTime || sleep.sleepEnd;
         if (start && end) {
           sleepWindow.textContent = `${formatClock(start)} → ${formatClock(end)}`;
         }
 
-        const totalSeconds = sleep.sleepTimeSeconds ?? sleep.sleepTimeInSeconds ?? sleep.totalSleepSeconds;
         if (Number.isFinite(totalSeconds)) {
           sleepDuration.textContent = formatDuration(totalSeconds);
         }
-
-        const light = sleep.lightSleepSeconds ?? sleep.lightSleepTimeInSeconds ?? 0;
-        const deep = sleep.deepSleepSeconds ?? sleep.deepSleepTimeInSeconds ?? 0;
-        const rem = sleep.remSleepSeconds ?? sleep.remSleepTimeInSeconds ?? 0;
-        const awake = sleep.awakeSleepSeconds ?? sleep.awakeSleepTimeInSeconds ?? 0;
 
         const total = light + deep + rem + awake;
         setPhaseFill(phaseLight, light, total);
@@ -862,7 +921,9 @@
           phaseAwakeTime.textContent = formatDuration(awake);
         }
 
-        const sleepMessage = sleep.sleepScoreFeedback || sleep.sleepScoreQualifier || "Sleep synced from Garmin Connect.";
+        const sleepMessage =
+          pick(sleepRoot, [["sleepScoreFeedback"], ["sleepScoreQualifier"], ["sleepQuality"]]) ||
+          "Sleep synced from Garmin Connect.";
         sleepDetail.textContent = sleepMessage;
 
         if (summary) {
@@ -935,11 +996,24 @@
           range.slice(0, 7).forEach((entry) => {
             const day = entry.date;
             const dayLabel = day ? new Date(day).toLocaleDateString(undefined, { weekday: "short" }) : "--";
-            const scoreValue = entry.sleep
-              ? entry.sleep.sleepScore ?? entry.sleep.sleepScoreOverall ?? entry.sleep.sleepScoreOverallValue
+            const entryRoot = entry.sleep
+              ? entry.sleep.dailySleepDTO || entry.sleep.dailySleepData || entry.sleep
               : null;
-            const durationValue = entry.sleep
-              ? entry.sleep.sleepTimeSeconds ?? entry.sleep.sleepTimeInSeconds ?? entry.sleep.totalSleepSeconds
+            const scoreValue = entryRoot
+              ? pick(entryRoot, [
+                  ["sleepScore"],
+                  ["sleepScoreOverall"],
+                  ["sleepScoreOverallValue"],
+                  ["sleepScores", "overall", "value"],
+                ])
+              : null;
+            const durationValue = entryRoot
+              ? pick(entryRoot, [
+                  ["sleepTimeSeconds"],
+                  ["sleepTimeInSeconds"],
+                  ["totalSleepSeconds"],
+                  ["sleepTime"],
+                ])
               : null;
 
             const card = document.createElement("div");
@@ -973,8 +1047,9 @@
             throw new Error(text || "Garmin request failed");
           }
           const payload = await response.json();
-          if (payload && payload.sleep) {
-            applyGarminData(payload);
+          const beforeScore = sleepScore.textContent;
+          applyGarminData(payload);
+          if (sleepScore.textContent !== beforeScore || payload?.cached) {
             setStatus("Live Garmin Connect data loaded.");
           } else {
             setStatus("Garmin data missing. Using mock values.");
