@@ -25,29 +25,41 @@ async function notionRequest(path, body, token, method = "POST") {
   return text ? JSON.parse(text) : {};
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
+function resolveStatusProp(status, statusType) {
+  if (!status) return undefined;
+  if (statusType === "select") return { select: { name: status } };
+  if (statusType === "status") return { status: { name: status } };
+  return null;
+}
+
+function readStatusName(page) {
+  if (!page || !page.properties || !page.properties.Status) return "";
+  const prop = page.properties.Status;
+  if (prop.status && prop.status.name) return prop.status.name;
+  if (prop.select && prop.select.name) return prop.select.name;
+  return "";
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
   }
 
   const token = process.env.NOTION_TOKEN;
   if (!token) {
-    return { statusCode: 500, body: JSON.stringify({ error: "Missing NOTION_TOKEN" }) };
+    res.status(500).json({ error: "Missing NOTION_TOKEN" });
+    return;
   }
 
-  let payload;
-  try {
-    payload = JSON.parse(event.body || "{}");
-  } catch (err) {
-    return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
-  }
-
+  const payload = req.body || {};
   const databaseId = formatNotionId(payload.databaseId || process.env.NOTION_DATABASE_ID || "");
 
   try {
     if (payload.action === "query") {
       if (!databaseId) {
-        return { statusCode: 400, body: JSON.stringify({ error: "Missing databaseId" }) };
+        res.status(400).json({ error: "Missing databaseId" });
+        return;
       }
       const database = await notionRequest(`/databases/${databaseId}`, null, token, "GET");
       const dataSourceId = Array.isArray(database.data_sources) && database.data_sources[0]
@@ -80,12 +92,14 @@ exports.handler = async (event) => {
         cursor = result.next_cursor || undefined;
       }
 
-      return { statusCode: 200, body: JSON.stringify({ results: allResults }) };
+      res.status(200).json({ results: allResults });
+      return;
     }
 
     if (payload.action === "create") {
       if (!databaseId) {
-        return { statusCode: 400, body: JSON.stringify({ error: "Missing databaseId" }) };
+        res.status(400).json({ error: "Missing databaseId" });
+        return;
       }
       const statusProp = resolveStatusProp(payload.properties.status, payload.properties.statusType);
       const baseProperties = {
@@ -97,7 +111,8 @@ exports.handler = async (event) => {
         parent: { database_id: databaseId },
         properties,
       }, token);
-      return { statusCode: 200, body: JSON.stringify(result) };
+      res.status(200).json(result);
+      return;
     }
 
     if (payload.action === "update") {
@@ -110,35 +125,37 @@ exports.handler = async (event) => {
 
       if (payload.properties.statusType && payload.properties.statusType !== "auto") {
         const result = await notionRequest(`/pages/${payload.pageId}`, { properties }, token, "PATCH");
-        return { statusCode: 200, body: JSON.stringify(result) };
+        res.status(200).json({ id: result.id, statusName: readStatusName(result) });
+        return;
       }
 
       try {
         const result = await notionRequest(`/pages/${payload.pageId}`, {
           properties: { ...baseProperties, Status: { status: { name: payload.properties.status } } },
         }, token, "PATCH");
-        return { statusCode: 200, body: JSON.stringify(result) };
+        res.status(200).json({ id: result.id, statusName: readStatusName(result), mode: "status" });
+        return;
       } catch (err) {
+        if (String(err.message || "").includes("archived")) {
+          const page = await notionRequest(`/pages/${payload.pageId}`, null, token, "GET");
+          res.status(200).json({ archived: !!page.archived, id: payload.pageId, error: "archived" });
+          return;
+        }
         const fallback = await notionRequest(`/pages/${payload.pageId}`, {
           properties: { ...baseProperties, Status: { select: { name: payload.properties.status } } },
         }, token, "PATCH");
-        return { statusCode: 200, body: JSON.stringify(fallback) };
+        res.status(200).json({ id: fallback.id, statusName: readStatusName(fallback), mode: "select" });
+        return;
       }
     }
 
-    return { statusCode: 404, body: JSON.stringify({ error: "Unknown action" }) };
+    res.status(404).json({ error: "Unknown action" });
   } catch (err) {
     console.error("Notion function error", {
       action: payload.action,
       pageId: payload.pageId,
       message: err.message || "Server error",
     });
-    return { statusCode: 500, body: JSON.stringify({ error: err.message || "Server error" }) };
+    res.status(500).json({ error: err.message || "Server error" });
   }
-};
-function resolveStatusProp(status, statusType) {
-  if (!status) return undefined;
-  if (statusType === "select") return { select: { name: status } };
-  if (statusType === "status") return { status: { name: status } };
-  return null;
 }
