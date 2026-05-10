@@ -1,4 +1,4 @@
-const NOTION_VERSION = "2023-06-01";
+const NOTION_VERSION = "2026-03-11";
 
 async function notionRequest(path, body, token) {
   const response = await fetch(`https://api.notion.com/v1${path}`, {
