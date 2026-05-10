@@ -735,6 +735,29 @@
         display: none;
       }
 
+      .gm-card-upcoming .gm-progress-row {
+        display: none;
+      }
+
+      .upcoming-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .upcoming-date {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        white-space: nowrap;
+      }
+
       .gm-tomorrow-sub {
         font-size: 12px;
         color: var(--text-tertiary);
@@ -905,6 +928,19 @@
           </div>
           <div class="gm-status" id="tomorrowStatus"></div>
         </div>
+
+        <div class="card gm-card gm-card-upcoming">
+          <div class="gm-header">
+            <div>
+              <div class="gm-eyebrow" id="upcomingLabel">Upcoming —</div>
+              <div class="gm-tomorrow-sub">Future-dated tasks from Notion.</div>
+            </div>
+            <div class="gm-tomorrow-count" id="gmUpcomingCount">0 upcoming</div>
+          </div>
+
+          <ul id="upcomingList" class="goal-list gm-list"></ul>
+          <div id="upcomingEmpty" class="empty-state">No upcoming tasks yet</div>
+        </div>
       </div>
     </div>
 
@@ -955,6 +991,10 @@
       const tomorrowPolishBtn = document.getElementById("tomorrowPolishBtn");
       const tomorrowStatus = document.getElementById("tomorrowStatus");
       const gmTomorrowCount = document.getElementById("gmTomorrowCount");
+      const upcomingList = document.getElementById("upcomingList");
+      const upcomingEmpty = document.getElementById("upcomingEmpty");
+      const gmUpcomingCount = document.getElementById("gmUpcomingCount");
+      const upcomingLabel = document.getElementById("upcomingLabel");
 
       const goalTickerStage = document.getElementById("goalTickerStage");
       const goalTickerMeta = document.getElementById("goalTickerMeta");
@@ -1134,6 +1174,25 @@
 
       function renderTomorrowCount(goals) {
         gmTomorrowCount.textContent = `${goals.length} planned`;
+      }
+
+      function renderUpcoming(goals) {
+        upcomingList.innerHTML = "";
+        goals.forEach((item) => {
+          const row = document.createElement("li");
+          row.className = "goal-row upcoming-row";
+          const date = document.createElement("span");
+          date.className = "upcoming-date";
+          date.textContent = formatDate(item.date);
+          const text = document.createElement("div");
+          text.className = "goal-text";
+          text.textContent = item.text;
+          row.appendChild(date);
+          row.appendChild(text);
+          upcomingList.appendChild(row);
+        });
+        upcomingEmpty.style.display = goals.length ? "none" : "block";
+        gmUpcomingCount.textContent = `${goals.length} upcoming`;
       }
 
       function makeInlineEdit(el, goal, goals, key, reload) {
@@ -1378,9 +1437,27 @@
         renderListInto(goals, tomorrowList, tomorrowEmpty, key, true);
       }
 
+      function loadUpcoming() {
+        const tomorrow = getTomorrowDateString();
+        const future = [];
+        storeListKeys("goals:").forEach((key) => {
+          const date = key.split(":")[1];
+          if (!date || date <= tomorrow) return;
+          const goals = normalizeGoals(storeGet(key));
+          goals
+            .filter((goal) => !goal.done)
+            .forEach((goal) => {
+              future.push({ text: goal.text, date });
+            });
+        });
+        future.sort((a, b) => a.date.localeCompare(b.date));
+        renderUpcoming(future);
+      }
+
       function updateLabels() {
         todayLabel.textContent = `Today — ${formatDate(getActiveDateString())}`;
         tomorrowLabel.textContent = `Plan tomorrow — ${formatDate(getTomorrowDateString())}`;
+        upcomingLabel.textContent = `Upcoming — ${formatDate(getTomorrowDateString())}+`;
       }
 
       function formatClock(date) {
@@ -1895,6 +1972,7 @@
 
           loadToday();
           loadTomorrow();
+          loadUpcoming();
           setSyncStatus("Notion sync updated.");
         } catch (err) {
           setDebug(`Notion sync error: ${err.message || "unknown"}`);
@@ -2029,6 +2107,7 @@
         processStreak();
         loadToday();
         loadTomorrow();
+        loadUpcoming();
         renderStreak();
         updateDayBar();
         startTicker();
@@ -2050,6 +2129,10 @@
           tomorrowStatus,
           loadTomorrow
         );
+
+        window.addEventListener("goals-changed", () => {
+          loadUpcoming();
+        });
 
         if (NOTION_SYNC_ENABLED) {
           syncAllNotion();
