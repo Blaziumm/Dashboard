@@ -1243,7 +1243,7 @@
             delete goal.doneAt;
           }
           storeSet(key, goals);
-          pushSingleGoal({ ...goal });
+          pushSingleGoal({ ...goal }, key, idx);
           reload();
         });
 
