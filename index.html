@@ -919,6 +919,7 @@
         due: "Due Date",
         turnedIn: "",
       };
+      const NOTION_STATUS_TYPE = "select";
       const NOTION_POLL_MS = 60000;
       const WAKE_HOUR = 8;
       const SLEEP_HOUR = 24;
@@ -1663,7 +1664,11 @@
         const title = titleProp && titleProp.title && titleProp.title[0]
           ? titleProp.title.map((t) => t.plain_text).join("")
           : "";
-        const status = statusProp && statusProp.status ? statusProp.status.name : "";
+        const status = statusProp && statusProp.status
+          ? statusProp.status.name
+          : statusProp && statusProp.select
+            ? statusProp.select.name
+            : "";
         const turnedIn = turnedInProp && typeof turnedInProp.checkbox === "boolean" ? turnedInProp.checkbox : false;
         const dueDate = dueProp && dueProp.date && dueProp.date.start ? dueProp.date.start.slice(0, 10) : null;
         const done = status === "Done" || turnedIn;
@@ -1704,6 +1709,7 @@
           title: goal.text,
           status: goal.done ? "Done" : "Not started",
           due: goal.dueDate || null,
+          statusType: NOTION_STATUS_TYPE,
         };
 
         if (goal.notionId) {

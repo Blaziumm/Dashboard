@@ -87,11 +87,16 @@ exports.handler = async (event) => {
       if (!databaseId) {
         return { statusCode: 400, body: JSON.stringify({ error: "Missing databaseId" }) };
       }
+      const statusProp = payload.properties.status
+        ? (payload.properties.statusType === "select"
+          ? { select: { name: payload.properties.status } }
+          : { status: { name: payload.properties.status } })
+        : undefined;
       const result = await notionRequest("/pages", {
         parent: { database_id: databaseId },
         properties: {
           Name: { title: [{ text: { content: payload.properties.title } }] },
-          Status: payload.properties.status ? { status: { name: payload.properties.status } } : undefined,
+          Status: statusProp,
           "Due Date": payload.properties.due ? { date: { start: payload.properties.due } } : undefined,
         },
       }, token);
@@ -99,10 +104,15 @@ exports.handler = async (event) => {
     }
 
     if (payload.action === "update") {
+      const statusProp = payload.properties.status
+        ? (payload.properties.statusType === "select"
+          ? { select: { name: payload.properties.status } }
+          : { status: { name: payload.properties.status } })
+        : undefined;
       const result = await notionRequest(`/pages/${payload.pageId}`, {
         properties: {
           Name: { title: [{ text: { content: payload.properties.title } }] },
-          Status: payload.properties.status ? { status: { name: payload.properties.status } } : undefined,
+          Status: statusProp,
           "Due Date": payload.properties.due ? { date: { start: payload.properties.due } } : undefined,
         },
       }, token, "PATCH");
