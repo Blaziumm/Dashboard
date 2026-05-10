@@ -1730,9 +1730,9 @@
         if (!goal.notionId) return;
         try {
           const result = await upsertNotionTask(goal);
-          if (result && typeof result === "object" && result.archived) {
-            goal.notionArchived = true;
-            setDebug(`Notion push skipped (archived): ${goal.text}`);
+          if (result && typeof result === "object" && result.error === "archived") {
+            if (result.archived) goal.notionArchived = true;
+            setDebug(`Notion push archived? ${result.archived} id=${result.id}`);
             return;
           }
           setDebug(`Notion push ok: ${goal.text}`);

@@ -129,7 +129,8 @@ export default async function handler(req, res) {
         return;
       } catch (err) {
         if (String(err.message || "").includes("archived")) {
-          res.status(200).json({ archived: true, id: payload.pageId });
+          const page = await notionRequest(`/pages/${payload.pageId}`, null, token, "GET");
+          res.status(200).json({ archived: !!page.archived, id: payload.pageId, error: "archived" });
           return;
         }
         const fallback = await notionRequest(`/pages/${payload.pageId}`, {
