@@ -1243,6 +1243,7 @@
             delete goal.doneAt;
           }
           storeSet(key, goals);
+          pushSingleGoal({ ...goal });
           reload();
         });
 
@@ -1722,6 +1723,22 @@
         const result = await notionFetch({ action: "create", databaseId: formatNotionId(NOTION_DATABASE_ID), properties: payload });
         if (result && result.archived) return { archived: true, id: result.id };
         return result.id;
+      }
+
+      async function pushSingleGoal(goal) {
+        if (!NOTION_SYNC_ENABLED) return;
+        if (!goal.notionId) return;
+        try {
+          const result = await upsertNotionTask(goal);
+          if (result && typeof result === "object" && result.archived) {
+            goal.notionArchived = true;
+            setDebug(`Notion push skipped (archived): ${goal.text}`);
+            return;
+          }
+          setDebug(`Notion push ok: ${goal.text}`);
+        } catch (err) {
+          setDebug(`Notion push error: ${err.message || "unknown"}`);
+        }
       }
 
       async function syncFromNotion() {
