@@ -1,5 +1,12 @@
 const NOTION_VERSION = "2026-03-11";
 
+function formatNotionId(id) {
+  if (!id) return "";
+  const cleaned = id.replace(/-/g, "");
+  if (cleaned.length !== 32) return id;
+  return `${cleaned.slice(0, 8)}-${cleaned.slice(8, 12)}-${cleaned.slice(12, 16)}-${cleaned.slice(16, 20)}-${cleaned.slice(20)}`;
+}
+
 async function notionRequest(path, body, token, method = "POST") {
   const response = await fetch(`https://api.notion.com/v1${path}`, {
     method,
@@ -8,7 +15,7 @@ async function notionRequest(path, body, token, method = "POST") {
       "Notion-Version": NOTION_VERSION,
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+    body: method === "GET" ? undefined : JSON.stringify(body),
   });
 
   const text = await response.text();
@@ -35,18 +42,31 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
-  const databaseId = payload.databaseId || process.env.NOTION_DATABASE_ID;
+  const databaseId = formatNotionId(payload.databaseId || process.env.NOTION_DATABASE_ID || "");
 
   try {
     if (payload.action === "query") {
       if (!databaseId) {
         return { statusCode: 400, body: JSON.stringify({ error: "Missing databaseId" }) };
       }
-      const result = await notionRequest(`/databases/${databaseId}/query`, {
+      const database = await notionRequest(`/databases/${databaseId}`, null, token, "GET");
+      const dataSourceId = Array.isArray(database.data_sources) && database.data_sources[0]
+        ? database.data_sources[0].id
+        : null;
+
+      if (dataSourceId) {
+        const result = await notionRequest(`/data_sources/${dataSourceId}/query`, {
+          sorts: payload.sorts || [],
+          filter: payload.filter || undefined,
+        }, token);
+        return { statusCode: 200, body: JSON.stringify(result) };
+      }
+
+      const legacyResult = await notionRequest(`/databases/${databaseId}/query`, {
         sorts: payload.sorts || [],
         filter: payload.filter || undefined,
       }, token);
-      return { statusCode: 200, body: JSON.stringify(result) };
+      return { statusCode: 200, body: JSON.stringify(legacyResult) };
     }
 
     if (payload.action === "create") {
