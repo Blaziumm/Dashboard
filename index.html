@@ -1693,13 +1693,25 @@
         if (!NOTION_SYNC_ENABLED) return;
         try {
           const tasks = await fetchNotionTasks();
+          const doneIds = new Set(tasks.filter((t) => t.done).map((t) => t.notionId));
+          const openTasks = tasks.filter((t) => !t.done);
           setDebug(`Notion tasks after map: ${tasks.length}`);
           const grouped = new Map();
-          tasks.forEach((task) => {
+          openTasks.forEach((task) => {
             const date = task.dueDate || getActiveDateString();
             if (!grouped.has(date)) grouped.set(date, []);
             grouped.get(date).push(task);
           });
+
+          if (doneIds.size) {
+            storeListKeys("goals:").forEach((key) => {
+              const existing = normalizeGoals(storeGet(key));
+              const filtered = existing.filter((goal) => !doneIds.has(goal.notionId));
+              if (filtered.length !== existing.length) {
+                storeSet(key, filtered);
+              }
+            });
+          }
 
           grouped.forEach((tasksForDate, date) => {
             const key = `goals:${date}`;

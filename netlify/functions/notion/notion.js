@@ -54,19 +54,33 @@ exports.handler = async (event) => {
         ? database.data_sources[0].id
         : null;
 
-      if (dataSourceId) {
-        const result = await notionRequest(`/data_sources/${dataSourceId}/query`, {
+      const allResults = [];
+      let cursor = undefined;
+      let hasMore = true;
+
+      while (hasMore) {
+        const queryBody = {
           sorts: payload.sorts || [],
           filter: payload.filter || undefined,
-        }, token);
-        return { statusCode: 200, body: JSON.stringify(result) };
+          start_cursor: cursor,
+          page_size: 100,
+        };
+
+        let result;
+        if (dataSourceId) {
+          result = await notionRequest(`/data_sources/${dataSourceId}/query`, queryBody, token);
+        } else {
+          result = await notionRequest(`/databases/${databaseId}/query`, queryBody, token);
+        }
+
+        if (Array.isArray(result.results)) {
+          allResults.push(...result.results);
+        }
+        hasMore = !!result.has_more;
+        cursor = result.next_cursor || undefined;
       }
 
-      const legacyResult = await notionRequest(`/databases/${databaseId}/query`, {
-        sorts: payload.sorts || [],
-        filter: payload.filter || undefined,
-      }, token);
-      return { statusCode: 200, body: JSON.stringify(legacyResult) };
+      return { statusCode: 200, body: JSON.stringify({ results: allResults }) };
     }
 
     if (payload.action === "create") {
