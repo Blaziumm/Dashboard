@@ -1833,6 +1833,7 @@
           const tasks = await fetchNotionTasks();
           const doneIds = new Set(tasks.filter((t) => t.done).map((t) => t.notionId));
           const archivedIds = new Set(tasks.filter((t) => t.notionArchived).map((t) => t.notionId));
+          const allNotionIds = new Set(tasks.map((t) => t.notionId).filter(Boolean));
           const openTasks = tasks.filter((t) => !t.done && !t.notionArchived);
           setDebug(`Notion tasks after map: ${tasks.length}`);
 
@@ -1857,28 +1858,25 @@
             grouped.get(date).push(task);
           });
 
-          if (doneIds.size || archivedIds.size) {
-            storeListKeys("goals:").forEach((key) => {
-              const existing = normalizeGoals(storeGet(key));
-              const filtered = existing.filter((goal) => !doneIds.has(goal.notionId) && !archivedIds.has(goal.notionId));
-              if (filtered.length !== existing.length) {
-                storeSet(key, filtered);
-              }
+          storeListKeys("goals:").forEach((key) => {
+            const existing = normalizeGoals(storeGet(key));
+            const filtered = existing.filter((goal) => {
+              if (!goal.notionId) return true;
+              if (doneIds.has(goal.notionId)) return false;
+              if (archivedIds.has(goal.notionId)) return false;
+              if (allNotionIds.has(goal.notionId)) return false;
+              return true;
             });
-          }
+            if (filtered.length !== existing.length) {
+              storeSet(key, filtered);
+            }
+          });
 
           grouped.forEach((tasksForDate, date) => {
             const key = `goals:${date}`;
-            const existing = normalizeGoals(storeGet(key));
-            tasksForDate.forEach((task) => {
-              const hit = task.notionId ? existingById.get(task.notionId) : null;
-              if (hit && hit.key !== key) {
-                const other = normalizeGoals(storeGet(hit.key));
-                const trimmed = other.filter((goal) => goal.notionId !== task.notionId);
-                if (trimmed.length !== other.length) {
-                  storeSet(hit.key, trimmed);
-                }
-              }
+            const existing = normalizeGoals(storeGet(key)).filter((goal) => {
+              if (!goal.notionId) return true;
+              return !allNotionIds.has(goal.notionId);
             });
             const merged = mergeGoalsByHash(existing, tasksForDate);
             const seenIds = new Set();
