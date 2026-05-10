@@ -128,6 +128,11 @@ exports.handler = async (event) => {
 
     return { statusCode: 404, body: JSON.stringify({ error: "Unknown action" }) };
   } catch (err) {
+    console.error("Notion function error", {
+      action: payload.action,
+      pageId: payload.pageId,
+      message: err.message || "Server error",
+    });
     return { statusCode: 500, body: JSON.stringify({ error: err.message || "Server error" }) };
   }
 };
