@@ -1672,7 +1672,7 @@
         const turnedIn = turnedInProp && typeof turnedInProp.checkbox === "boolean" ? turnedInProp.checkbox : false;
         const dueDate = dueProp && dueProp.date && dueProp.date.start ? dueProp.date.start.slice(0, 10) : null;
         const done = status === "Done" || turnedIn;
-          //test
+        const archived = !!page.archived;
         return {
           text: title,
           done,
@@ -1681,6 +1681,7 @@
           notionId: page.id,
           lastSynced: Date.now(),
           source: "notion",
+          notionArchived: archived,
         };
       }
 
@@ -1726,7 +1727,8 @@
         try {
           const tasks = await fetchNotionTasks();
           const doneIds = new Set(tasks.filter((t) => t.done).map((t) => t.notionId));
-          const openTasks = tasks.filter((t) => !t.done);
+          const archivedIds = new Set(tasks.filter((t) => t.notionArchived).map((t) => t.notionId));
+          const openTasks = tasks.filter((t) => !t.done && !t.notionArchived);
           setDebug(`Notion tasks after map: ${tasks.length}`);
           const grouped = new Map();
           openTasks.forEach((task) => {
@@ -1735,10 +1737,10 @@
             grouped.get(date).push(task);
           });
 
-          if (doneIds.size) {
+          if (doneIds.size || archivedIds.size) {
             storeListKeys("goals:").forEach((key) => {
               const existing = normalizeGoals(storeGet(key));
-              const filtered = existing.filter((goal) => !doneIds.has(goal.notionId));
+              const filtered = existing.filter((goal) => !doneIds.has(goal.notionId) && !archivedIds.has(goal.notionId));
               if (filtered.length !== existing.length) {
                 storeSet(key, filtered);
               }
@@ -1772,6 +1774,9 @@
         if (!NOTION_SYNC_ENABLED) return;
         const entries = getAllLocalGoals();
         for (const { goal } of entries) {
+          if (goal.notionArchived) {
+            continue;
+          }
           try {
             const notionId = await upsertNotionTask(goal);
             if (notionId && !goal.notionId) {
