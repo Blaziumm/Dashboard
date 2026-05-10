@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         };
 
         let result;
-        if (dataSourceId) {
+        if (dataSourceId && !payload.useLegacy) {
           result = await notionRequest(`/data_sources/${dataSourceId}/query`, queryBody, token);
         } else {
           result = await notionRequest(`/databases/${databaseId}/query`, queryBody, token);

@@ -1711,7 +1711,12 @@
       }
 
       async function fetchNotionTasks() {
-        const data = await notionFetch({ action: "query", databaseId: formatNotionId(NOTION_DATABASE_ID) });
+        // Personal Project is intentionally ignored in sync filtering.
+        const data = await notionFetch({
+          action: "query",
+          databaseId: formatNotionId(NOTION_DATABASE_ID),
+          useLegacy: true,
+        });
         const results = Array.isArray(data.results) ? data.results : [];
         setDebug(`Notion results: ${results.length}`);
         const tasks = results.map(normalizeNotionTask).filter((task) => task.text);
