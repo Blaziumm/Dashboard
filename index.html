@@ -970,6 +970,7 @@
       };
 
       const notionIndex = new Map();
+      const notionIndexByText = new Map();
 
       function storeGet(key) {
         const raw = localStorage.getItem(key);
@@ -1707,10 +1708,20 @@
         setDebug(`Notion results: ${results.length}`);
         const tasks = results.map(normalizeNotionTask).filter((task) => task.text);
         notionIndex.clear();
+        notionIndexByText.clear();
+        const textCounts = new Map();
         tasks.forEach((task) => {
           if (!task.notionId) return;
           const key = notionKeyFrom(task);
           notionIndex.set(key, task.notionId);
+          const textKey = normalizeText(task.text);
+          textCounts.set(textKey, (textCounts.get(textKey) || 0) + 1);
+          if (!notionIndexByText.has(textKey)) {
+            notionIndexByText.set(textKey, task.notionId);
+          }
+        });
+        textCounts.forEach((count, textKey) => {
+          if (count > 1) notionIndexByText.set(textKey, null);
         });
         return tasks;
       }
@@ -1754,6 +1765,12 @@
             const matchId = notionIndex.get(notionKeyFrom(goal));
             if (matchId) {
               goal.notionId = matchId;
+            } else {
+              const textKey = normalizeText(goal.text);
+              const textMatch = notionIndexByText.get(textKey);
+              if (textMatch) {
+                goal.notionId = textMatch;
+              }
             }
           }
           setDebug(
