@@ -1715,10 +1715,12 @@
 
         if (goal.notionId) {
           const result = await notionFetch({ action: "update", pageId: goal.notionId, properties: payload });
+          if (result && result.archived) return { archived: true, id: result.id || goal.notionId };
           return result.id;
         }
 
         const result = await notionFetch({ action: "create", databaseId: formatNotionId(NOTION_DATABASE_ID), properties: payload });
+        if (result && result.archived) return { archived: true, id: result.id };
         return result.id;
       }
 
@@ -1803,9 +1805,12 @@
             continue;
           }
           try {
-            const notionId = await upsertNotionTask(goal);
-            if (notionId && !goal.notionId) {
-              goal.notionId = notionId;
+            const notionResult = await upsertNotionTask(goal);
+            if (notionResult && typeof notionResult === "object" && notionResult.archived) {
+              goal.notionArchived = true;
+              if (notionResult.id) goal.notionId = notionResult.id;
+            } else if (notionResult && !goal.notionId) {
+              goal.notionId = notionResult;
             }
             goal.lastSynced = Date.now();
           } catch (err) {

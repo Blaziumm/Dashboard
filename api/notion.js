@@ -128,6 +128,10 @@ export default async function handler(req, res) {
         res.status(200).json(result);
         return;
       } catch (err) {
+        if (String(err.message || "").includes("archived")) {
+          res.status(200).json({ archived: true, id: payload.pageId });
+          return;
+        }
         const fallback = await notionRequest(`/pages/${payload.pageId}`, {
           properties: { ...baseProperties, Status: { select: { name: payload.properties.status } } },
         }, token, "PATCH");
