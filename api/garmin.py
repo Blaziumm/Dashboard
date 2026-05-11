@@ -1,6 +1,8 @@
 import json
 import os
 import time
+import logging
+import sys
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
@@ -8,9 +10,14 @@ from urllib.parse import parse_qs, urlparse
 from garminconnect import Garmin
 
 
-CACHE_TTL_SECONDS = 10 * 60
-TOKEN_STORE = "/tmp/garmin_tokens.json"
+CACHE_TTL_SECONDS = 30 * 60
+TOKEN_STORE = os.path.expanduser(os.getenv("GARMINTOKENS", "~/.garminconnect"))
 _MEMORY_CACHE = {}
+_CLIENT = None
+_CLIENT_TS = 0
+_CLIENT_TTL_SECONDS = 10 * 60
+_MAX_RETRIES = 3
+_LOG_PATH = os.getenv("GARMIN_LOG")
 
 
 def _cache_get(key):
@@ -25,6 +32,54 @@ def _cache_get(key):
 
 def _cache_set(key, value):
     _MEMORY_CACHE[key] = {"value": value, "timestamp": time.time()}
+
+
+def _get_logger():
+    logger = logging.getLogger("garmin_api")
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.INFO)
+    if _LOG_PATH:
+        log_dir = os.path.dirname(_LOG_PATH)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        handler = logging.FileHandler(_LOG_PATH)
+    else:
+        handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+
+
+def _is_rate_limited(err):
+    return "429" in str(err)
+
+
+def _with_backoff(fn, *args, **kwargs):
+    delay = 1
+    for attempt in range(_MAX_RETRIES):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as err:
+            _get_logger().warning("Garmin request failed attempt=%s error=%s", attempt + 1, err)
+            if not _is_rate_limited(err) or attempt == _MAX_RETRIES - 1:
+                raise
+            time.sleep(delay)
+            delay *= 2
+
+
+def _get_client(email, password):
+    global _CLIENT, _CLIENT_TS
+    now = time.time()
+    if _CLIENT and now - _CLIENT_TS < _CLIENT_TTL_SECONDS:
+        return _CLIENT
+    os.makedirs(TOKEN_STORE, exist_ok=True)
+    client = Garmin(email, password)
+    _with_backoff(client.login, TOKEN_STORE)
+    _CLIENT = client
+    _CLIENT_TS = now
+    return client
 
 
 def _resolve_date(query_date):
@@ -54,6 +109,7 @@ def _send_json(handler, status, payload):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        logger = _get_logger()
         email = os.getenv("GARMIN_EMAIL")
         password = os.getenv("GARMIN_PASSWORD")
         if not email or not password:
@@ -72,20 +128,20 @@ class handler(BaseHTTPRequestHandler):
             return
 
         try:
-            client = Garmin(email, password)
-            client.login(TOKEN_STORE)
+            logger.info("Garmin request start date=%s range=%s", date_str, range_days or 0)
+            client = _get_client(email, password)
 
-            sleep = client.get_sleep_data(date_str)
+            sleep = _with_backoff(client.get_sleep_data, date_str)
             summary = None
             body_battery = None
 
             try:
-                summary = client.get_stats(date_str)
+                summary = _with_backoff(client.get_stats, date_str)
             except Exception:
                 summary = None
 
             try:
-                body_battery = client.get_body_battery(date_str)
+                body_battery = _with_backoff(client.get_body_battery, date_str)
             except Exception:
                 body_battery = None
 
@@ -94,7 +150,7 @@ class handler(BaseHTTPRequestHandler):
                 range_data = []
                 for day in _build_date_range(range_days):
                     try:
-                        day_sleep = client.get_sleep_data(day)
+                        day_sleep = _with_backoff(client.get_sleep_data, day)
                         range_data.append({"date": day, "sleep": day_sleep})
                     except Exception:
                         range_data.append({"date": day, "sleep": None, "error": True})
@@ -106,9 +162,18 @@ class handler(BaseHTTPRequestHandler):
                 "bodyBattery": body_battery,
                 "range": range_data,
             }
+            logger.info(
+                "Garmin request ok date=%s range=%s has_sleep=%s has_summary=%s has_body_battery=%s",
+                date_str,
+                range_days or 0,
+                sleep is not None,
+                summary is not None,
+                body_battery is not None,
+            )
             _cache_set(cache_key, payload)
             _send_json(self, 200, payload)
         except Exception as err:
+            logger.error("Garmin request failed date=%s range=%s error=%s", date_str, range_days or 0, err)
             _send_json(self, 500, {"error": str(err)})
 
     def do_POST(self):
